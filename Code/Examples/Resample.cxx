@@ -42,6 +42,7 @@
 #include "itkImageFileWriter.h"
 #include "itkResampleImageFilter.h"
 #include "itkLinearInterpolateImageFunction.h"
+#include "itkNearestNeighborExtrapolateImageFunction.h"
 #include "itkAffineTransform.h"
 #include "itkImageRegionIterator.h"
 
@@ -55,12 +56,13 @@ int main ( int argc, char* argv[] )
     }
 
   const unsigned int Dimension = 3;
-  typedef unsigned char PixelType;
+  typedef unsigned short PixelType;
   typedef itk::Image< PixelType, Dimension > InputImageType;
   typedef itk::ImageFileReader< InputImageType > ReaderType;
   typedef itk::ImageFileWriter< InputImageType > WriterType;
   typedef itk::ResampleImageFilter< InputImageType, InputImageType > ResampleFilterType;
   typedef itk::LinearInterpolateImageFunction< InputImageType > InterpolatorType;
+  typedef itk::NearestNeighborExtrapolateImageFunction< InputImageType, double > ExtrapolatorType;
   typedef itk::AffineTransform< double, Dimension > TransformType;
 
   ReaderType::Pointer reader = ReaderType::New();
@@ -89,10 +91,12 @@ int main ( int argc, char* argv[] )
   transform->SetIdentity();
 
   InterpolatorType::Pointer interp = InterpolatorType::New();
+  ExtrapolatorType::Pointer extrap = ExtrapolatorType::New();
 
   ResampleFilterType::Pointer resample = ResampleFilterType::New();
   resample->SetTransform ( transform );
   resample->SetInterpolator ( interp );
+  resample->SetExtrapolator ( extrap );
   resample->SetInput ( reader->GetOutput() );
   resample->SetSize ( size );
   resample->SetOutputOrigin ( origin );
