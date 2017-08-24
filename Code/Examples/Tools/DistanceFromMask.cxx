@@ -40,83 +40,64 @@
 
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
-#include "itkResampleImageFilter.h"
-#include "itkLinearInterpolateImageFunction.h"
-#include "itkNearestNeighborExtrapolateImageFunction.h"
-#include "itkAffineTransform.h"
 #include "itkImageRegionIterator.h"
+#include "itkDanielssonDistanceMapImageFilter.h"
 
 int main ( int argc, char* argv[] )
   {
   if ( argc < 3 )
     {
     std::cerr << "Usage: " << std::endl;
-    std::cerr << argv[0] << " input output spacingFactorX spacingFactorY spacingFactorZ" << std::endl;
+    std::cerr << argv[0] << " inputMask seeds outputFile" << std::endl;
     return EXIT_FAILURE;
     }
 
   const unsigned int Dimension = 3;
-  typedef unsigned short PixelType;
-  typedef itk::Image< PixelType, Dimension > InputImageType;
-  typedef itk::ImageFileReader< InputImageType > ReaderType;
-  typedef itk::ImageFileWriter< InputImageType > WriterType;
-  typedef itk::ResampleImageFilter< InputImageType, InputImageType > ResampleFilterType;
-  typedef itk::LinearInterpolateImageFunction< InputImageType > InterpolatorType;
-  typedef itk::NearestNeighborExtrapolateImageFunction< InputImageType, double > ExtrapolatorType;
-  typedef itk::AffineTransform< double, Dimension > TransformType;
+  typedef itk::Image< unsigned int, Dimension > ImageType;
+  typedef itk::Image< float, Dimension > InputImageType;
+
+  typedef itk::ImageFileReader< ImageType > ReaderType;
+  typedef itk::DanielssonDistanceMapImageFilter< ImageType, InputImageType, ImageType > DistanceFilterType;
 
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName ( argv[1] );
   reader->Update();
+  ImageType::Pointer mask = reader->GetOutput();
 
-  float factor;
+  // Danielsson distance filter
+  DistanceFilterType::Pointer dist = DistanceFilterType::New();
+  dist->SetInput( mask );
+  dist->UseImageSpacingOn();
+  dist->UpdateLargestPossibleRegion();
+  InputImageType::Pointer distanceMap = dist->GetOutput();
 
-  InputImageType::PointType origin = reader->GetOutput()->GetOrigin();
+  // Open the seed file
+  std::fstream infile;
+  infile.open ( argv[2],std::ios::in );
+  unsigned int numOfLines;
+  infile >> numOfLines;
 
-  InputImageType::SizeType size = reader->GetOutput()->GetLargestPossibleRegion().GetSize();
-  InputImageType::SpacingType spacing = reader->GetOutput()->GetSpacing();
+  std::fstream outFile;
+  outFile.open ( argv[3],std::ios::out );
+  outFile << numOfLines << std::endl;
 
+  ImageType::PointType pt;
+  ImageType::IndexType idx;
+  unsigned int cellID;
 
-  // No z sampling
-  for( unsigned int i = 0; i < Dimension; i++ )
+  for ( unsigned int j = 0; j < numOfLines; j++ )
+  {
+    for ( unsigned int i = 0; i < Dimension; i++ )
     {
-    factor = atof(argv[3+i]);
-    size[i] = size[i]/factor;
-    spacing[i] = spacing[i]*factor;
+      infile >> pt[i];
     }
-  std::cout << size << std::endl;
+    infile >> cellID;
 
-  // create the resample filter, transform and interpolator
-  TransformType::Pointer transform = TransformType::New();
-  transform->SetIdentity();
-
-  InterpolatorType::Pointer interp = InterpolatorType::New();
-  ExtrapolatorType::Pointer extrap = ExtrapolatorType::New();
-
-  ResampleFilterType::Pointer resample = ResampleFilterType::New();
-  resample->SetTransform ( transform );
-  resample->SetInterpolator ( interp );
-  resample->SetExtrapolator ( extrap );
-  resample->SetInput ( reader->GetOutput() );
-  resample->SetSize ( size );
-  resample->SetOutputOrigin ( origin );
-  resample->SetOutputSpacing ( spacing );
-  resample->SetDefaultPixelValue ( 0 );
-  resample->Update();
-
-  WriterType::Pointer writer = WriterType::New();
-  writer->SetInput ( resample->GetOutput() );
-  writer->SetFileName ( argv[2] );
-  writer->SetUseCompression( true );
-
-  try
-    {
-    writer->Update();
-    }
-  catch ( itk::ExceptionObject e )
-    {
-    std::cerr << "Error: " << e << std::endl;
-    }
+    mask->TransformPhysicalPointToIndex( pt, idx );
+    outFile << cellID << ' ' << distanceMap->GetPixel( idx ) << std::endl;
+  }
+  infile.close();
+  outFile.close();
 
   return EXIT_SUCCESS;
   }
