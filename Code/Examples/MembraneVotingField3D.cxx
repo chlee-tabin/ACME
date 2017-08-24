@@ -164,7 +164,6 @@ int main ( int argc, char* argv[] )
   cputimer.Stop();
   std::cout << "Tensor voting filter took " << cputimer.GetMean() << " seconds" << std::endl;
 
-
   SaliencyFilterType::Pointer saliency = SaliencyFilterType::New();
   saliency->SetInput( tensorVote->GetOutput() );
   saliency->SetComputeEigenMatrix( false );
